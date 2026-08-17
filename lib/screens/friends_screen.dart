@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../services/friend_service.dart';
+import 'friend_requests_screen.dart';
 
 class FriendsScreen extends StatefulWidget {
   const FriendsScreen({super.key});
@@ -26,7 +27,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   void _search() {
     setState(() {
-      _searchText = _searchController.text.trim().toLowerCase();
+      _searchText =
+          _searchController.text.trim().toLowerCase();
     });
   }
 
@@ -52,6 +54,16 @@ class _FriendsScreenState extends State<FriendsScreen> {
     }
   }
 
+  void _openRequests() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const FriendRequestsScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,6 +74,15 @@ class _FriendsScreenState extends State<FriendsScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Friend Requests',
+            onPressed: _openRequests,
+            icon: const Icon(
+              Icons.person_add_alt_1,
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -69,26 +90,33 @@ class _FriendsScreenState extends State<FriendsScreen> {
             padding: const EdgeInsets.all(12),
             child: TextField(
               controller: _searchController,
-              textInputAction: TextInputAction.search,
+              textInputAction:
+                  TextInputAction.search,
               onSubmitted: (_) => _search(),
               decoration: InputDecoration(
                 hintText: 'Search users...',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon:
+                    const Icon(Icons.search),
                 suffixIcon: IconButton(
                   onPressed: _search,
-                  icon: const Icon(Icons.arrow_forward),
+                  icon: const Icon(
+                    Icons.arrow_forward,
+                  ),
                 ),
                 filled: true,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius:
+                      BorderRadius.circular(25),
                   borderSide: BorderSide.none,
                 ),
               ),
             ),
           ),
+
           Expanded(
             child: StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
+                QuerySnapshot<
+                    Map<String, dynamic>>>(
               stream: _friendService.searchUsers(
                 _searchText,
               ),
@@ -96,23 +124,27 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 if (snapshot.connectionState ==
                     ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(),
+                    child:
+                        CircularProgressIndicator(),
                   );
                 }
 
                 if (snapshot.hasError) {
                   return Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding:
+                          const EdgeInsets.all(20),
                       child: Text(
                         'Search failed.\n${snapshot.error}',
-                        textAlign: TextAlign.center,
+                        textAlign:
+                            TextAlign.center,
                       ),
                     ),
                   );
                 }
 
-                final users = snapshot.data?.docs ?? [];
+                final users =
+                    snapshot.data?.docs ?? [];
 
                 if (users.isEmpty) {
                   return const Center(
@@ -129,7 +161,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
                           'কোনো User পাওয়া যায়নি।',
                           style: TextStyle(
                             fontSize: 17,
-                            fontWeight: FontWeight.bold,
+                            fontWeight:
+                                FontWeight.bold,
                           ),
                         ),
                       ],
@@ -138,52 +171,64 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
+                  padding:
+                      const EdgeInsets.symmetric(
                     horizontal: 12,
                   ),
                   itemCount: users.length,
-                  itemBuilder: (context, index) {
+                  itemBuilder:
+                      (context, index) {
                     final doc = users[index];
                     final data = doc.data();
 
                     final name =
-                        data['name'] ?? 'Bondhu User';
+                        data['name'] ??
+                            'Bondhu User';
 
                     final photoUrl =
                         data['photoUrl'] ?? '';
 
                     return Card(
-                      margin: const EdgeInsets.only(
+                      margin:
+                          const EdgeInsets.only(
                         bottom: 8,
                       ),
                       child: ListTile(
                         leading: CircleAvatar(
                           radius: 25,
                           backgroundImage:
-                              photoUrl.toString().isNotEmpty
+                              photoUrl
+                                      .toString()
+                                      .isNotEmpty
                                   ? NetworkImage(
                                       photoUrl,
                                     )
                                   : null,
-                          child:
-                              photoUrl.toString().isEmpty
-                                  ? const Icon(
-                                      Icons.person,
-                                    )
-                                  : null,
+                          child: photoUrl
+                                  .toString()
+                                  .isEmpty
+                              ? const Icon(
+                                  Icons.person,
+                                )
+                              : null,
                         ),
                         title: Text(
                           name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                          style:
+                              const TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
                           ),
                         ),
                         subtitle: const Text(
                           'Bondhu Social User',
                         ),
-                        trailing: ElevatedButton(
+                        trailing:
+                            ElevatedButton(
                           onPressed: () {
-                            _sendRequest(doc.id);
+                            _sendRequest(
+                              doc.id,
+                            );
                           },
                           child: const Text(
                             'Add Friend',
