@@ -1,0 +1,23 @@
+actions: [
+  IconButton(
+    tooltip: 'My Friends',
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MyFriendsScreen(),
+        ),
+      );
+    },
+    icon: const Icon(
+      Icons.people,
+    ),
+  ),
+  IconButton(
+    tooltip: 'Friend Requests',
+    onPressed: _openRequests,
+    icon: const Icon(
+      Icons.person_add_alt_1,
+    ),
+  ),
+],
