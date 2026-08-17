@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -25,23 +26,60 @@ class BondhuSocialApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+
       title: 'Bondhu Social',
+
       theme: ThemeData(
         useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+        ),
       ),
+
       home: const AuthGate(),
     );
   }
 }
 
+// =====================================================
+// AUTH GATE
+// =====================================================
+
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
+
+  Future<bool> isAdmin(User user) async {
+    try {
+      final document = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!document.exists) {
+        return false;
+      }
+
+      final data = document.data();
+
+      final role =
+          data?['role']?.toString().toLowerCase();
+
+      return role == 'admin';
+    } catch (e) {
+      return false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
+
       builder: (context, snapshot) {
+        // =================================================
+        // LOADING
+        // =================================================
+
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Scaffold(
@@ -51,15 +89,60 @@ class AuthGate extends StatelessWidget {
           );
         }
 
-        if (snapshot.hasData) {
-          return const MainNavigation();
+        // =================================================
+        // USER LOGGED OUT
+        // =================================================
+
+        if (!snapshot.hasData) {
+          return const AuthScreen();
         }
 
-        return const AuthScreen();
+        // =================================================
+        // USER LOGGED IN
+        // =================================================
+
+        final user = snapshot.data!;
+
+        return FutureBuilder<bool>(
+          future: isAdmin(user),
+
+          builder: (context, adminSnapshot) {
+            // =================================================
+            // CHECKING ADMIN
+            // =================================================
+
+            if (adminSnapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            // =================================================
+            // ADMIN
+            // =================================================
+
+            if (adminSnapshot.data == true) {
+              return const AdminDashboard();
+            }
+
+            // =================================================
+            // NORMAL USER
+            // =================================================
+
+            return const MainNavigation();
+          },
+        );
       },
     );
   }
 }
+
+// =====================================================
+// MAIN NAVIGATION
+// =====================================================
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -87,24 +170,37 @@ class _MainNavigationState
         index: _currentIndex,
         children: _screens,
       ),
+
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
+
         onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;
           });
         },
+
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            icon: Icon(
+              Icons.home_outlined,
+            ),
+            selectedIcon: Icon(
+              Icons.home,
+            ),
             label: 'Home',
           ),
+
           NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
+            icon: Icon(
+              Icons.people_outline,
+            ),
+            selectedIcon: Icon(
+              Icons.people,
+            ),
             label: 'Friends',
           ),
+
           NavigationDestination(
             icon: Icon(
               Icons.notifications_outlined,
@@ -114,9 +210,14 @@ class _MainNavigationState
             ),
             label: 'Notifications',
           ),
+
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
+            icon: Icon(
+              Icons.person_outline,
+            ),
+            selectedIcon: Icon(
+              Icons.person,
+            ),
             label: 'Profile',
           ),
         ],
@@ -124,6 +225,10 @@ class _MainNavigationState
     );
   }
 }
+
+// =====================================================
+// FRIENDS SCREEN
+// =====================================================
 
 class FriendsScreen extends StatelessWidget {
   const FriendsScreen({super.key});
@@ -139,16 +244,20 @@ class FriendsScreen extends StatelessWidget {
           ),
         ),
       ),
+
       body: const Center(
         child: Column(
           mainAxisAlignment:
               MainAxisAlignment.center,
+
           children: [
             Icon(
               Icons.people,
               size: 70,
             ),
+
             SizedBox(height: 15),
+
             Text(
               'Friends',
               style: TextStyle(
@@ -156,7 +265,9 @@ class FriendsScreen extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             SizedBox(height: 8),
+
             Text(
               'Friend system খুব শীঘ্রই যোগ হবে।',
             ),
@@ -166,6 +277,10 @@ class FriendsScreen extends StatelessWidget {
     );
   }
 }
+
+// =====================================================
+// NOTIFICATIONS SCREEN
+// =====================================================
 
 class NotificationsScreen
     extends StatelessWidget {
@@ -182,16 +297,20 @@ class NotificationsScreen
           ),
         ),
       ),
+
       body: const Center(
         child: Column(
           mainAxisAlignment:
               MainAxisAlignment.center,
+
           children: [
             Icon(
               Icons.notifications,
               size: 70,
             ),
+
             SizedBox(height: 15),
+
             Text(
               'Notifications',
               style: TextStyle(
@@ -199,7 +318,9 @@ class NotificationsScreen
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             SizedBox(height: 8),
+
             Text(
               'কোনো নতুন notification নেই।',
             ),
