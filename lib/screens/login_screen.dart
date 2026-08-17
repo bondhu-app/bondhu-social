@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../services/auth_service.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -36,24 +38,88 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      // Firebase Login
       await _authService.login(
-        email: _emailController.text,
+        email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
+      // Firebase Auth থেকে বর্তমান user নেওয়া
+      final user = _authService.currentUser;
+
+      if (user == null) {
+        throw Exception('User পাওয়া যায়নি।');
+      }
+
+      // Firestore users collection থেকে role চেক
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        throw Exception(
+          'আপনার user profile পাওয়া যায়নি।',
+        );
+      }
+
+      final data = userDoc.data();
+
+      final role = data?['role']?.toString().toLowerCase();
+
       if (!mounted) return;
+
+      // =========================
+      // ADMIN
+      // =========================
+
+      if (role == 'admin') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Admin Login সফল হয়েছে।',
+            ),
+          ),
+        );
+
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/admin',
+          (route) => false,
+        );
+
+        return;
+      }
+
+      // =========================
+      // NORMAL USER
+      // =========================
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('লগইন সফল হয়েছে।'),
+          content: Text(
+            'লগইন সফল হয়েছে।',
+          ),
         ),
+      );
+
+      // এখানে তোমার মূল Home Screen-এর route বসবে।
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/home',
+        (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(
+            e.toString().replaceFirst(
+              'Exception: ',
+              '',
+            ),
+          ),
         ),
       );
     } finally {
@@ -75,7 +141,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Form(
               key: _formKey,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment:
+                    CrossAxisAlignment.stretch,
                 children: [
                   const Icon(
                     Icons.people_alt_rounded,
@@ -105,18 +172,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 35),
 
+                  // =========================
+                  // EMAIL
+                  // =========================
+
                   TextFormField(
                     controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
+                    keyboardType:
+                        TextInputType.emailAddress,
+                    textInputAction:
+                        TextInputAction.next,
+                    decoration:
+                        const InputDecoration(
                       labelText: 'ইমেইল',
-                      hintText: 'example@gmail.com',
-                      prefixIcon: Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(),
+                      hintText:
+                          'example@gmail.com',
+                      prefixIcon: Icon(
+                        Icons.email_outlined,
+                      ),
+                      border:
+                          OutlineInputBorder(),
                     ),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
+                      if (value == null ||
+                          value.trim().isEmpty) {
                         return 'ইমেইল লিখুন';
                       }
 
@@ -124,7 +203,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
                       );
 
-                      if (!emailRegex.hasMatch(value.trim())) {
+                      if (!emailRegex.hasMatch(
+                        value.trim(),
+                      )) {
                         return 'সঠিক ইমেইল দিন';
                       }
 
@@ -134,31 +215,48 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 16),
 
+                  // =========================
+                  // PASSWORD
+                  // =========================
+
                   TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _login(),
-                    decoration: InputDecoration(
+                    controller:
+                        _passwordController,
+                    obscureText:
+                        _obscurePassword,
+                    textInputAction:
+                        TextInputAction.done,
+                    onFieldSubmitted: (_) =>
+                        _login(),
+                    decoration:
+                        InputDecoration(
                       labelText: 'পাসওয়ার্ড',
-                      hintText: 'আপনার পাসওয়ার্ড',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
+                      hintText:
+                          'আপনার পাসওয়ার্ড',
+                      prefixIcon: const Icon(
+                        Icons.lock_outline,
+                      ),
+                      suffixIcon:
+                          IconButton(
                         onPressed: () {
                           setState(() {
-                            _obscurePassword = !_obscurePassword;
+                            _obscurePassword =
+                                !_obscurePassword;
                           });
                         },
                         icon: Icon(
                           _obscurePassword
-                              ? Icons.visibility_off
+                              ? Icons
+                                  .visibility_off
                               : Icons.visibility,
                         ),
                       ),
-                      border: const OutlineInputBorder(),
+                      border:
+                          const OutlineInputBorder(),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null ||
+                          value.isEmpty) {
                         return 'পাসওয়ার্ড লিখুন';
                       }
 
@@ -168,14 +266,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 8),
 
+                  // =========================
+                  // FORGOT PASSWORD
+                  // =========================
+
                   Align(
-                    alignment: Alignment.centerRight,
+                    alignment:
+                        Alignment.centerRight,
                     child: TextButton(
                       onPressed: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const ForgotPasswordScreen(),
+                            builder: (_) =>
+                                const ForgotPasswordScreen(),
                           ),
                         );
                       },
@@ -187,23 +291,33 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 8),
 
+                  // =========================
+                  // LOGIN BUTTON
+                  // =========================
+
                   SizedBox(
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
+                      onPressed:
+                          _isLoading
+                              ? null
+                              : _login,
                       child: _isLoading
                           ? const SizedBox(
                               width: 24,
                               height: 24,
-                              child: CircularProgressIndicator(
+                              child:
+                                  CircularProgressIndicator(
                                 strokeWidth: 2,
                               ),
                             )
                           : const Text(
                               'লগইন',
-                              style: TextStyle(
+                              style:
+                                  TextStyle(
                                 fontSize: 17,
-                                fontWeight: FontWeight.bold,
+                                fontWeight:
+                                    FontWeight.bold,
                               ),
                             ),
                     ),
@@ -211,8 +325,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 20),
 
+                  // =========================
+                  // REGISTER
+                  // =========================
+
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
                     children: [
                       const Text(
                         'অ্যাকাউন্ট নেই? ',
@@ -222,7 +341,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const RegisterScreen(),
+                              builder: (_) =>
+                                  const RegisterScreen(),
                             ),
                           );
                         },
