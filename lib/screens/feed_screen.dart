@@ -1,349 +1,257 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+                                                        child:
+                           import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../services/comment_service.dart';
-import '../services/post_service.dart';
+import '../widgets/video_post_card.dart';
+import 'create_video_post_screen.dart';
 
-class FeedScreen extends StatefulWidget {
+class FeedScreen extends StatelessWidget {
   const FeedScreen({super.key});
 
   @override
-  State<FeedScreen> createState() => _FeedScreenState();
-}
-
-class _FeedScreenState extends State<FeedScreen> {
-  final PostService _postService = PostService();
-  final CommentService _commentService = CommentService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  final TextEditingController _postController =
-      TextEditingController();
-
-  bool _posting = false;
-
-  @override
-  void dispose() {
-    _postController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _createPost() async {
-    final text = _postController.text.trim();
-
-    if (text.isEmpty) return;
-
-    setState(() {
-      _posting = true;
-    });
-
-    try {
-      await _postService.createPost(text: text);
-      _postController.clear();
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Post published successfully.'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Post failed: $e'),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _posting = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _toggleLike(
-    String postId,
-    List<dynamic> likes,
-  ) async {
-    try {
-      await _postService.toggleLike(
-        postId,
-        likes,
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Like failed: $e'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _deletePost(String postId) async {
-    try {
-      await _postService.deletePost(postId);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Post deleted.'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Delete failed: $e'),
-        ),
-      );
-    }
-  }
-
-  void _confirmDelete(String postId) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Delete Post'),
-          content: const Text(
-            'আপনি কি এই পোস্টটি মুছে ফেলতে চান?',
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Bondhu Social',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('না'),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Create Video',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const CreateVideoPostScreen(),
+                ),
+              );
+            },
+            icon: const Icon(
+              Icons.video_call,
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _deletePost(postId);
-              },
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+          ),
+        ],
+      ),
 
-  void _openComments(
-    String postId,
-    String postOwnerName,
-  ) {
-    final commentController = TextEditingController();
+      body: StreamBuilder<
+          QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('posts')
+            .orderBy(
+              'createdAt',
+              descending: true,
+            )
+            .snapshots(),
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        bool sending = false;
+        builder: (context, snapshot) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
 
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SizedBox(
-              height: MediaQuery.of(context).size.height * 0.75,
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  'Feed loading failed.\n\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          final posts =
+              snapshot.data?.docs ?? [];
+
+          if (posts.isEmpty) {
+            return const Center(
               child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.comment_outlined,
-                        ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Comments',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () {
-                            Navigator.pop(sheetContext);
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
+                  Icon(
+                    Icons.dynamic_feed,
+                    size: 70,
+                  ),
+                  SizedBox(height: 15),
+                  Text(
+                    'এখনো কোনো Post নেই।',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
-                  const Divider(),
-                  Expanded(
-                    child: StreamBuilder<
-                        QuerySnapshot<
-                            Map<String, dynamic>>>(
-                      stream: _commentService.getComments(
-                        postId,
-                      ),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child:
-                                CircularProgressIndicator(),
-                          );
-                        }
+                  SizedBox(height: 8),
+                  Text(
+                    'প্রথম Post তৈরি করুন।',
+                  ),
+                ],
+              ),
+            );
+          }
 
-                        if (snapshot.hasError) {
-                          return Center(
-                            child: Text(
-                              'Comments loading failed.\n${snapshot.error}',
-                              textAlign:
-                                  TextAlign.center,
-                            ),
-                          );
-                        }
+          return RefreshIndicator(
+            onRefresh: () async {
+              await Future.delayed(
+                const Duration(
+                  milliseconds: 500,
+                ),
+              );
+            },
+            child: ListView.builder(
+              padding:
+                  const EdgeInsets.only(
+                top: 8,
+                bottom: 20,
+              ),
+              itemCount: posts.length,
+              itemBuilder: (
+                context,
+                index,
+              ) {
+                final post =
+                    posts[index].data();
 
-                        final comments =
-                            snapshot.data?.docs ?? [];
+                final type =
+                    post['type'] ?? 'text';
 
-                        if (comments.isEmpty) {
-                          return const Center(
-                            child: Column(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons
-                                      .chat_bubble_outline,
-                                  size: 55,
-                                ),
-                                SizedBox(height: 12),
-                                Text(
-                                  'এখনো কোনো Comment নেই।',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight:
-                                        FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
+                if (type == 'video') {
+                  return VideoPostCard(
+                    videoUrl:
+                        post['videoUrl'] ?? '',
+                    userName:
+                        post['userName'] ??
+                            'Bondhu User',
+                    userPhotoUrl:
+                        post['userPhotoUrl'] ??
+                            '',
+                    caption:
+                        post['text'] ?? '',
+                  );
+                }
 
-                        return ListView.builder(
-                          padding:
-                              const EdgeInsets.symmetric(
-                            horizontal: 16,
-                          ),
-                          itemCount: comments.length,
-                          itemBuilder:
-                              (context, index) {
-                            final comment =
-                                comments[index];
+                return _TextPostCard(
+                  userName:
+                      post['userName'] ??
+                          'Bondhu User',
+                  userPhotoUrl:
+                      post['userPhotoUrl'] ??
+                          '',
+                  text:
+                      post['text'] ?? '',
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
 
-                            final data =
-                                comment.data();
+class _TextPostCard extends StatelessWidget {
+  final String userName;
+  final String userPhotoUrl;
+  final String text;
 
-                            final userName =
-                                data['userName'] ??
-                                    'Bondhu User';
+  const _TextPostCard({
+    required this.userName,
+    required this.userPhotoUrl,
+    required this.text,
+  });
 
-                            final photoUrl =
-                                data['userPhotoUrl'] ??
-                                    '';
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 8,
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: CircleAvatar(
+              backgroundImage:
+                  userPhotoUrl.isNotEmpty
+                      ? NetworkImage(
+                          userPhotoUrl,
+                        )
+                      : null,
+              child: userPhotoUrl.isEmpty
+                  ? const Icon(Icons.person)
+                  : null,
+            ),
+            title: Text(
+              userName,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
 
-                            final text =
-                                data['text'] ?? '';
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              16,
+              0,
+              16,
+              12,
+            ),
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 16,
+              ),
+            ),
+          ),
 
-                            final commentUserId =
-                                data['userId'] ?? '';
+          const Divider(height: 1),
 
-                            final isOwner =
-                                commentUserId ==
-                                    _auth.currentUser
-                                        ?.uid;
-
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.only(
-                                bottom: 12,
-                              ),
-                              child: Row(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  CircleAvatar(
-                                    radius: 20,
-                                    backgroundImage:
-                                        photoUrl
-                                                .toString()
-                                                .isNotEmpty
-                                            ? NetworkImage(
-                                                photoUrl,
-                                              )
-                                            : null,
-                                    child: photoUrl
-                                            .toString()
-                                            .isEmpty
-                                        ? const Icon(
-                                            Icons.person,
-                                            size: 20,
-                                          )
-                                        : null,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Container(
-                                      padding:
-                                          const EdgeInsets
-                                              .all(12),
-                                      decoration:
-                                          BoxDecoration(
-                                        color: Colors
-                                            .grey
-                                            .shade100,
-                                        borderRadius:
-                                            BorderRadius
-                                                .circular(
-                                          16,
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment
-                                                .start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  userName,
-                                                  style:
-                                                      const TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                              if (isOwner)
-                                                PopupMenuButton(
-                                                  padding:
-                                                      EdgeInsets.zero,
-                                                  itemBuilder:
-                                                      (context) {
-                                                    return const [
-                                                      PopupMenuItem(
-                                                        value:
-                                                            'delete',
-                                                        child:
-                                                            Text(
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(
+                    Icons.favorite_border,
+                  ),
+                  label: const Text('Like'),
+                ),
+              ),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(
+                    Icons.comment_outlined,
+                  ),
+                  label: const Text('Comment'),
+                ),
+              ),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(
+                    Icons.share_outlined,
+                  ),
+                  label: const Text('Share'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}                                 Text(
                                                           'Delete',
                                                         ),
                                                       ),
