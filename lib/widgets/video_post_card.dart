@@ -28,7 +28,8 @@ class _VideoPostCardState
   void initState() {
     super.initState();
 
-    _controller = VideoPlayerController.networkUrl(
+    _controller =
+        VideoPlayerController.networkUrl(
       Uri.parse(widget.videoUrl),
     )..initialize().then((_) {
         if (mounted) {
@@ -73,9 +74,10 @@ class _VideoPostCardState
                           widget.userPhotoUrl,
                         )
                       : null,
-              child: widget.userPhotoUrl.isEmpty
-                  ? const Icon(Icons.person)
-                  : null,
+              child:
+                  widget.userPhotoUrl.isEmpty
+                      ? const Icon(Icons.person)
+                      : null,
             ),
             title: Text(
               widget.userName,
@@ -95,9 +97,6 @@ class _VideoPostCardState
               ),
               child: Text(
                 widget.caption,
-                style: const TextStyle(
-                  fontSize: 15,
-                ),
               ),
             ),
 
