@@ -1,42 +1,38 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import 'profile_screen.dart';
 
-class HomeScreen extends StatelessWidget {
-  HomeScreen({super.key});
+import 'feed_screen.dart';
+import 'profile_screen.dart';
+import '../services/auth_service.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _currentIndex = 0;
 
   final AuthService _authService = AuthService();
 
-  Future<void> _logout(BuildContext context) async {
-    try {
-      await _authService.logout();
+  final List<Widget> _pages = const [
+    FeedScreen(),
+    ProfileScreen(),
+  ];
 
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('আপনি লগআউট করেছেন।'),
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Logout failed: $e'),
-        ),
-      );
-    }
+  Future<void> _logout() async {
+    await _authService.logout();
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog<void>(
+  void _showLogoutDialog() {
+    showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('লগআউট'),
+          title: const Text('Logout'),
           content: const Text(
-            'আপনি কি আপনার অ্যাকাউন্ট থেকে লগআউট করতে চান?',
+            'আপনি কি আপনার অ্যাকাউন্ট থেকে Logout করতে চান?',
           ),
           actions: [
             TextButton(
@@ -48,9 +44,9 @@ class HomeScreen extends StatelessWidget {
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(dialogContext);
-                await _logout(context);
+                await _logout();
               },
-              child: const Text('হ্যাঁ, লগআউট'),
+              child: const Text('Logout'),
             ),
           ],
         );
@@ -60,129 +56,59 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = _authService.currentUser;
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bondhu Social'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            tooltip: 'Profile',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ProfileScreen(),
-                ),
-              );
-            },
-            icon: const Icon(
-              Icons.account_circle_outlined,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _pages,
+      ),
+
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(
+              Icons.home_outlined,
             ),
+            selectedIcon: Icon(
+              Icons.home,
+            ),
+            label: 'Home',
           ),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: () {
-              _showLogoutDialog(context);
-            },
-            icon: const Icon(
-              Icons.logout,
+          NavigationDestination(
+            icon: Icon(
+              Icons.person_outline,
             ),
+            selectedIcon: Icon(
+              Icons.person,
+            ),
+            label: 'Profile',
           ),
         ],
       ),
 
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.people_alt_rounded,
-                size: 90,
-              ),
-
-              const SizedBox(height: 24),
-
-              const Text(
-                'Bondhu Social-এ স্বাগতম!',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              Text(
-                user?.email ?? 'User',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                ),
-              ),
-
-              const SizedBox(height: 35),
-
-              const Text(
-                'আপনি সফলভাবে লগইন করেছেন।',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 17,
-                ),
-              ),
-
-              const SizedBox(height: 35),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton.icon(
+      floatingActionButton:
+          _currentIndex == 0
+              ? FloatingActionButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ProfileScreen(),
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'উপরে Create Post box ব্যবহার করুন।',
+                        ),
                       ),
                     );
                   },
-                  icon: const Icon(
-                    Icons.person,
+                  child: const Icon(
+                    Icons.add,
                   ),
-                  label: const Text(
-                    'আমার Profile',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    _showLogoutDialog(context);
-                  },
-                  icon: const Icon(
-                    Icons.logout,
-                  ),
-                  label: const Text(
-                    'লগআউট',
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+                )
+              : null,
     );
   }
 }
