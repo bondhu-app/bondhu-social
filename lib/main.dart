@@ -2,9 +2,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
-import 'services/auth_service.dart';
-import 'screens/home_screen.dart';
-import 'screens/login_screen.dart';
+import 'screens/feed_screen.dart';
+import 'screens/profile_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,36 +25,158 @@ class BondhuSocialApp extends StatelessWidget {
       title: 'Bondhu Social',
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-        brightness: Brightness.light,
       ),
-      home: const AuthGate(),
+      home: const MainNavigation(),
     );
   }
 }
 
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
+class MainNavigation extends StatefulWidget {
+  const MainNavigation({super.key});
+
+  @override
+  State<MainNavigation> createState() =>
+      _MainNavigationState();
+}
+
+class _MainNavigationState
+    extends State<MainNavigation> {
+  int _currentIndex = 0;
+
+  final List<Widget> _screens = const [
+    FeedScreen(),
+    FriendsScreen(),
+    NotificationsScreen(),
+    ProfileScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder(
-      stream: AuthService().authStateChanges,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar:
+          NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
+            label: 'Friends',
+          ),
+          NavigationDestination(
+            icon: Icon(
+              Icons.notifications_outlined,
             ),
-          );
-        }
+            selectedIcon: Icon(
+              Icons.notifications,
+            ),
+            label: 'Notifications',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-        if (snapshot.hasData) {
-          return HomeScreen();
-        }
+class FriendsScreen extends StatelessWidget {
+  const FriendsScreen({super.key});
 
-        return const LoginScreen();
-      },
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Friends',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: const Center(
+        child: Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.people,
+              size: 70,
+            ),
+            SizedBox(height: 15),
+            Text(
+              'Friends',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Friend system খুব শীঘ্রই যোগ হবে।',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class NotificationsScreen
+    extends StatelessWidget {
+  const NotificationsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: const Center(
+        child: Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.notifications,
+              size: 70,
+            ),
+            SizedBox(height: 15),
+            Text(
+              'Notifications',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'কোনো নতুন notification নেই।',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
