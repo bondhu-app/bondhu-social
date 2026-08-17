@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   HomeScreen({super.key});
@@ -28,6 +29,35 @@ class HomeScreen extends StatelessWidget {
     }
   }
 
+  void _showLogoutDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('লগআউট'),
+          content: const Text(
+            'আপনি কি আপনার অ্যাকাউন্ট থেকে লগআউট করতে চান?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('না'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await _logout(context);
+              },
+              child: const Text('হ্যাঁ, লগআউট'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = _authService.currentUser;
@@ -38,12 +68,31 @@ class HomeScreen extends StatelessWidget {
         centerTitle: true,
         actions: [
           IconButton(
+            tooltip: 'Profile',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProfileScreen(),
+                ),
+              );
+            },
+            icon: const Icon(
+              Icons.account_circle_outlined,
+            ),
+          ),
+          IconButton(
             tooltip: 'Logout',
-            onPressed: () => _showLogoutDialog(context),
-            icon: const Icon(Icons.logout),
+            onPressed: () {
+              _showLogoutDialog(context);
+            },
+            icon: const Icon(
+              Icons.logout,
+            ),
           ),
         ],
       ),
+
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -76,7 +125,7 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 35),
 
               const Text(
                 'আপনি সফলভাবে লগইন করেছেন।',
@@ -86,46 +135,54 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 35),
 
-              ElevatedButton.icon(
-                onPressed: () => _showLogoutDialog(context),
-                icon: const Icon(Icons.logout),
-                label: const Text('লগআউট'),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProfileScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.person,
+                  ),
+                  label: const Text(
+                    'আমার Profile',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    _showLogoutDialog(context);
+                  },
+                  icon: const Icon(
+                    Icons.logout,
+                  ),
+                  label: const Text(
+                    'লগআউট',
+                  ),
+                ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  void _showLogoutDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('লগআউট'),
-          content: const Text(
-            'আপনি কি আপনার অ্যাকাউন্ট থেকে লগআউট করতে চান?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('না'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(dialogContext);
-                await _logout(context);
-              },
-              child: const Text('হ্যাঁ, লগআউট'),
-            ),
-          ],
-        );
-      },
     );
   }
 }
