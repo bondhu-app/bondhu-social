@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../services/comment_service.dart';
 import '../services/post_service.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -13,6 +14,7 @@ class FeedScreen extends StatefulWidget {
 
 class _FeedScreenState extends State<FeedScreen> {
   final PostService _postService = PostService();
+  final CommentService _commentService = CommentService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   final TextEditingController _postController =
@@ -29,19 +31,14 @@ class _FeedScreenState extends State<FeedScreen> {
   Future<void> _createPost() async {
     final text = _postController.text.trim();
 
-    if (text.isEmpty) {
-      return;
-    }
+    if (text.isEmpty) return;
 
     setState(() {
       _posting = true;
     });
 
     try {
-      await _postService.createPost(
-        text: text,
-      );
-
+      await _postService.createPost(text: text);
       _postController.clear();
 
       if (!mounted) return;
@@ -68,9 +65,27 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
-  Future<void> _deletePost(
+  Future<void> _toggleLike(
     String postId,
+    List<dynamic> likes,
   ) async {
+    try {
+      await _postService.toggleLike(
+        postId,
+        likes,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Like failed: $e'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deletePost(String postId) async {
     try {
       await _postService.deletePost(postId);
 
@@ -92,9 +107,7 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
-  void _confirmDelete(
-    String postId,
-  ) {
+  void _confirmDelete(String postId) {
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -123,24 +136,432 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  Future<void> _toggleLike(
+  void _openComments(
     String postId,
-    List<dynamic> likes,
-  ) async {
-    try {
-      await _postService.toggleLike(
-        postId,
-        likes,
-      );
-    } catch (e) {
-      if (!mounted) return;
+    String postOwnerName,
+  ) {
+    final commentController = TextEditingController();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Like failed: $e'),
-        ),
-      );
-    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        bool sending = false;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.75,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.comment_outlined,
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Comments',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                          },
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: StreamBuilder<
+                        QuerySnapshot<
+                            Map<String, dynamic>>>(
+                      stream: _commentService.getComments(
+                        postId,
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child:
+                                CircularProgressIndicator(),
+                          );
+                        }
+
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Comments loading failed.\n${snapshot.error}',
+                              textAlign:
+                                  TextAlign.center,
+                            ),
+                          );
+                        }
+
+                        final comments =
+                            snapshot.data?.docs ?? [];
+
+                        if (comments.isEmpty) {
+                          return const Center(
+                            child: Column(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons
+                                      .chat_bubble_outline,
+                                  size: 55,
+                                ),
+                                SizedBox(height: 12),
+                                Text(
+                                  'এখনো কোনো Comment নেই।',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          padding:
+                              const EdgeInsets.symmetric(
+                            horizontal: 16,
+                          ),
+                          itemCount: comments.length,
+                          itemBuilder:
+                              (context, index) {
+                            final comment =
+                                comments[index];
+
+                            final data =
+                                comment.data();
+
+                            final userName =
+                                data['userName'] ??
+                                    'Bondhu User';
+
+                            final photoUrl =
+                                data['userPhotoUrl'] ??
+                                    '';
+
+                            final text =
+                                data['text'] ?? '';
+
+                            final commentUserId =
+                                data['userId'] ?? '';
+
+                            final isOwner =
+                                commentUserId ==
+                                    _auth.currentUser
+                                        ?.uid;
+
+                            return Padding(
+                              padding:
+                                  const EdgeInsets.only(
+                                bottom: 12,
+                              ),
+                              child: Row(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundImage:
+                                        photoUrl
+                                                .toString()
+                                                .isNotEmpty
+                                            ? NetworkImage(
+                                                photoUrl,
+                                              )
+                                            : null,
+                                    child: photoUrl
+                                            .toString()
+                                            .isEmpty
+                                        ? const Icon(
+                                            Icons.person,
+                                            size: 20,
+                                          )
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Container(
+                                      padding:
+                                          const EdgeInsets
+                                              .all(12),
+                                      decoration:
+                                          BoxDecoration(
+                                        color: Colors
+                                            .grey
+                                            .shade100,
+                                        borderRadius:
+                                            BorderRadius
+                                                .circular(
+                                          16,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment
+                                                .start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  userName,
+                                                  style:
+                                                      const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (isOwner)
+                                                PopupMenuButton(
+                                                  padding:
+                                                      EdgeInsets.zero,
+                                                  itemBuilder:
+                                                      (context) {
+                                                    return const [
+                                                      PopupMenuItem(
+                                                        value:
+                                                            'delete',
+                                                        child:
+                                                            Text(
+                                                          'Delete',
+                                                        ),
+                                                      ),
+                                                    ];
+                                                  },
+                                                  onSelected:
+                                                      (value) async {
+                                                    if (value ==
+                                                        'delete') {
+                                                      try {
+                                                        await _commentService
+                                                            .deleteComment(
+                                                          postId:
+                                                              postId,
+                                                          commentId:
+                                                              comment.id,
+                                                        );
+                                                      } catch (e) {
+                                                        if (!context
+                                                            .mounted) {
+                                                          return;
+                                                        }
+
+                                                        ScaffoldMessenger
+                                                                .of(
+                                                                    context)
+                                                            .showSnackBar(
+                                                          SnackBar(
+                                                            content:
+                                                                Text(
+                                                              'Delete failed: $e',
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
+                                                    }
+                                                  },
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(
+                                            height: 4,
+                                          ),
+                                          Text(text),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: 12,
+                        right: 12,
+                        bottom: MediaQuery.of(context)
+                                .viewInsets
+                                .bottom +
+                            8,
+                        top: 8,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller:
+                                  commentController,
+                              textInputAction:
+                                  TextInputAction.send,
+                              onSubmitted: (_) async {
+                                if (sending) return;
+
+                                final text =
+                                    commentController
+                                        .text
+                                        .trim();
+
+                                if (text.isEmpty) return;
+
+                                setSheetState(() {
+                                  sending = true;
+                                });
+
+                                try {
+                                  await _commentService
+                                      .addComment(
+                                    postId: postId,
+                                    text: text,
+                                  );
+
+                                  commentController
+                                      .clear();
+                                } catch (e) {
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+
+                                  ScaffoldMessenger
+                                          .of(context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Comment failed: $e',
+                                      ),
+                                    ),
+                                  );
+                                } finally {
+                                  if (context.mounted) {
+                                    setSheetState(() {
+                                      sending = false;
+                                    });
+                                  }
+                                }
+                              },
+                              decoration:
+                                  InputDecoration(
+                                hintText:
+                                    'Comment লিখুন...',
+                                filled: true,
+                                border:
+                                    OutlineInputBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    25,
+                                  ),
+                                  borderSide:
+                                      BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          CircleAvatar(
+                            radius: 23,
+                            child: IconButton(
+                              onPressed: sending
+                                  ? null
+                                  : () async {
+                                      final text =
+                                          commentController
+                                              .text
+                                              .trim();
+
+                                      if (text.isEmpty) {
+                                        return;
+                                      }
+
+                                      setSheetState(() {
+                                        sending = true;
+                                      });
+
+                                      try {
+                                        await _commentService
+                                            .addComment(
+                                          postId: postId,
+                                          text: text,
+                                        );
+
+                                        commentController
+                                            .clear();
+                                      } catch (e) {
+                                        if (!context
+                                            .mounted) {
+                                          return;
+                                        }
+
+                                        ScaffoldMessenger
+                                                .of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Comment failed: $e',
+                                            ),
+                                          ),
+                                        );
+                                      } finally {
+                                        if (context
+                                            .mounted) {
+                                          setSheetState(() {
+                                            sending = false;
+                                          });
+                                        }
+                                      }
+                                    },
+                              icon: sending
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child:
+                                          CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.send,
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      commentController.dispose();
+    });
   }
 
   @override
@@ -183,7 +604,7 @@ class _FeedScreenState extends State<FeedScreen> {
           return RefreshIndicator(
             onRefresh: () async {
               await Future.delayed(
-                const Duration(milliseconds: 500),
+                const Duration(milliseconds: 400),
               );
             },
             child: ListView(
@@ -256,9 +677,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         'U',
                   ),
                 ),
-
                 const SizedBox(width: 12),
-
                 Expanded(
                   child: TextField(
                     controller: _postController,
@@ -278,9 +697,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
             SizedBox(
               width: double.infinity,
               height: 46,
@@ -324,17 +741,20 @@ class _FeedScreenState extends State<FeedScreen> {
     final likes =
         (data['likes'] as List?) ?? [];
 
-    final isLiked = likes.contains(
-      _auth.currentUser?.uid,
-    );
+    final isLiked =
+        likes.contains(_auth.currentUser?.uid);
 
     final canDelete =
         userId == _auth.currentUser?.uid;
 
+    final commentsCount =
+        data['commentsCount'] ?? 0;
+
     Timestamp? timestamp;
 
     if (data['createdAt'] is Timestamp) {
-      timestamp = data['createdAt'] as Timestamp;
+      timestamp =
+          data['createdAt'] as Timestamp;
     }
 
     return Card(
@@ -348,27 +768,24 @@ class _FeedScreenState extends State<FeedScreen> {
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            // USER HEADER
             Row(
               children: [
                 CircleAvatar(
                   radius: 22,
                   backgroundImage:
-                      userPhotoUrl.toString().isNotEmpty
+                      userPhotoUrl
+                              .toString()
+                              .isNotEmpty
                           ? NetworkImage(
                               userPhotoUrl,
                             )
                           : null,
                   child:
                       userPhotoUrl.toString().isEmpty
-                          ? const Icon(
-                              Icons.person,
-                            )
+                          ? const Icon(Icons.person)
                           : null,
                 ),
-
                 const SizedBox(width: 10),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
@@ -382,9 +799,7 @@ class _FeedScreenState extends State<FeedScreen> {
                           fontSize: 16,
                         ),
                       ),
-
                       const SizedBox(height: 3),
-
                       Text(
                         timestamp == null
                             ? 'Just now'
@@ -400,22 +815,19 @@ class _FeedScreenState extends State<FeedScreen> {
                     ],
                   ),
                 ),
-
                 if (canDelete)
                   IconButton(
                     onPressed: () {
                       _confirmDelete(postId);
                     },
-                    icon: const Icon(
-                      Icons.more_vert,
-                    ),
+                    icon:
+                        const Icon(Icons.more_vert),
                   ),
               ],
             ),
 
             const SizedBox(height: 15),
 
-            // POST TEXT
             Text(
               text,
               style: const TextStyle(
@@ -428,7 +840,6 @@ class _FeedScreenState extends State<FeedScreen> {
 
             const Divider(),
 
-            // LIKE + COMMENT
             Row(
               children: [
                 Expanded(
@@ -449,15 +860,19 @@ class _FeedScreenState extends State<FeedScreen> {
                     ),
                   ),
                 ),
-
                 Expanded(
                   child: TextButton.icon(
-                    onPressed: () {},
+                    onPressed: () {
+                      _openComments(
+                        postId,
+                        userName,
+                      );
+                    },
                     icon: const Icon(
                       Icons.comment_outlined,
                     ),
                     label: Text(
-                      '${data['commentsCount'] ?? 0} Comment',
+                      '$commentsCount Comment',
                     ),
                   ),
                 ),
