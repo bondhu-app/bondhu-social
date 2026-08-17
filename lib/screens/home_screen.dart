@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'feed_screen.dart';
+import 'friends_screen.dart';
 import 'profile_screen.dart';
 import '../services/auth_service.dart';
 
@@ -18,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _pages = const [
     FeedScreen(),
+    FriendsScreen(),
     ProfileScreen(),
   ];
 
@@ -71,44 +73,37 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(
-              Icons.home_outlined,
-            ),
-            selectedIcon: Icon(
-              Icons.home,
-            ),
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(
-              Icons.person_outline,
-            ),
-            selectedIcon: Icon(
-              Icons.person,
-            ),
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
+            label: 'Friends',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
             label: 'Profile',
           ),
         ],
       ),
 
-      floatingActionButton:
-          _currentIndex == 0
-              ? FloatingActionButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'উপরে Create Post box ব্যবহার করুন।',
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Icon(
-                    Icons.add,
+      floatingActionButton: _currentIndex == 0
+          ? FloatingActionButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'উপরে Create Post box ব্যবহার করুন।',
+                    ),
                   ),
-                )
-              : null,
+                );
+              },
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }
