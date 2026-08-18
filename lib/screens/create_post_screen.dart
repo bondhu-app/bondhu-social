@@ -36,27 +36,44 @@ class _CreatePostScreenState
     });
 
     try {
-      final userDoc = await FirebaseFirestore
-          .instance
+      final firestore = FirebaseFirestore.instance;
+
+      final userDoc = await firestore
           .collection('users')
           .doc(user.uid)
           .get();
 
       final userData = userDoc.data() ?? {};
 
-      await FirebaseFirestore.instance
-          .collection('posts')
-          .add({
+      await firestore.collection('posts').add({
+        // =========================
+        // USER INFORMATION
+        // =========================
         'userId': user.uid,
+
         'userName': userData['name'] ??
             user.displayName ??
             'Bondhu User',
+
         'userPhotoUrl':
             userData['photoUrl'] ?? '',
+
+        // =========================
+        // POST INFORMATION
+        // =========================
         'text': text,
         'type': 'text',
-        'likes': <String>[],
-        'commentsCount': 0,
+
+        // =========================
+        // SOCIAL COUNTS
+        // =========================
+        'likeCount': 0,
+        'commentCount': 0,
+        'shareCount': 0,
+
+        // =========================
+        // CREATED TIME
+        // =========================
         'createdAt':
             FieldValue.serverTimestamp(),
       });
@@ -125,8 +142,7 @@ class _CreatePostScreenState
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child:
-                          CircularProgressIndicator(
+                      child: CircularProgressIndicator(
                         strokeWidth: 2,
                       ),
                     )
@@ -143,23 +159,24 @@ class _CreatePostScreenState
           children: [
             Row(
               children: [
-                CircleAvatar(
+                const CircleAvatar(
                   child: Icon(
                     Icons.person,
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
+                const Text(
                   'Create a post',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 20),
+
             Expanded(
               child: TextField(
                 controller: _textController,
@@ -178,7 +195,9 @@ class _CreatePostScreenState
                 ),
               ),
             ),
+
             const SizedBox(height: 15),
+
             Row(
               children: [
                 Expanded(
@@ -196,7 +215,9 @@ class _CreatePostScreenState
                     ),
                   ),
                 ),
+
                 const SizedBox(width: 10),
+
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
