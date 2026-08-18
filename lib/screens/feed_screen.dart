@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../widgets/video_post_card.dart';
 import 'create_post_screen.dart';
 
 class FeedScreen extends StatelessWidget {
@@ -11,16 +10,19 @@ class FeedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
+        elevation: 0,
         title: const Text(
-          'Bondhu Social',
+          'Bondhu',
           style: TextStyle(
             fontWeight: FontWeight.bold,
+            fontSize: 24,
           ),
         ),
         actions: [
           IconButton(
-            tooltip: 'Create Post',
+            icon: const Icon(Icons.add_box_outlined),
             onPressed: () {
               Navigator.push(
                 context,
@@ -29,7 +31,6 @@ class FeedScreen extends StatelessWidget {
                 ),
               );
             },
-            icon: const Icon(Icons.add_box_outlined),
           ),
         ],
       ),
@@ -61,35 +62,17 @@ class FeedScreen extends StatelessWidget {
 
           if (posts.isEmpty) {
             return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.dynamic_feed,
-                    size: 70,
-                  ),
-                  const SizedBox(height: 15),
-                  const Text(
-                    'এখনো কোনো Post নেই।',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CreatePostScreen(),
                     ),
-                  ),
-                  const SizedBox(height: 15),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CreatePostScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Post'),
-                  ),
-                ],
+                  );
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Create Post'),
               ),
             );
           }
@@ -103,33 +86,13 @@ class FeedScreen extends StatelessWidget {
             child: ListView.builder(
               padding: const EdgeInsets.only(
                 top: 8,
-                bottom: 20,
+                bottom: 90,
               ),
               itemCount: posts.length,
               itemBuilder: (context, index) {
-                final post = posts[index].data();
-                final postId = posts[index].id;
-
-                final type = post['type'] ?? 'text';
-
-                if (type == 'video') {
-                  return VideoPostCard(
-                    videoUrl: post['videoUrl'] ?? '',
-                    userName: post['userName'] ?? 'Bondhu User',
-                    userPhotoUrl:
-                        post['userPhotoUrl'] ?? '',
-                    caption: post['text'] ?? '',
-                  );
-                }
-
-                return _TextPostCard(
-                  key: ValueKey(postId),
-                  postId: postId,
-                  userId: post['userId'] ?? '',
-                  userName: post['userName'] ?? 'Bondhu User',
-                  userPhotoUrl:
-                      post['userPhotoUrl'] ?? '',
-                  text: post['text'] ?? '',
+                return PostCard(
+                  postId: posts[index].id,
+                  data: posts[index].data(),
                 );
               },
             ),
@@ -137,7 +100,6 @@ class FeedScreen extends StatelessWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Create Post',
         onPressed: () {
           Navigator.push(
             context,
@@ -152,50 +114,44 @@ class FeedScreen extends StatelessWidget {
   }
 }
 
-class _TextPostCard extends StatefulWidget {
+class PostCard extends StatefulWidget {
   final String postId;
-  final String userId;
-  final String userName;
-  final String userPhotoUrl;
-  final String text;
+  final Map<String, dynamic> data;
 
-  const _TextPostCard({
+  const PostCard({
     super.key,
     required this.postId,
-    required this.userId,
-    required this.userName,
-    required this.userPhotoUrl,
-    required this.text,
+    required this.data,
   });
 
   @override
-  State<_TextPostCard> createState() => _TextPostCardState();
+  State<PostCard> createState() => _PostCardState();
 }
 
-class _TextPostCardState extends State<_TextPostCard> {
+class _PostCardState extends State<PostCard> {
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseAuth _auth =
+      FirebaseAuth.instance;
 
-  bool _isLiking = false;
+  bool _loadingLike = false;
+  bool _loadingShare = false;
 
-  String? get currentUserId {
-    return _auth.currentUser?.uid;
-  }
+  User? get user => _auth.currentUser;
 
   Future<void> _toggleLike() async {
-    final uid = currentUserId;
+    final currentUser = user;
 
-    if (uid == null) {
-      _showLoginMessage();
+    if (currentUser == null) {
+      _message('Like করতে আগে Login করুন।');
       return;
     }
 
-    if (_isLiking) return;
+    if (_loadingLike) return;
 
     setState(() {
-      _isLiking = true;
+      _loadingLike = true;
     });
 
     try {
@@ -203,11 +159,11 @@ class _TextPostCardState extends State<_TextPostCard> {
           _firestore.collection('posts').doc(widget.postId);
 
       final likeRef =
-          postRef.collection('likes').doc(uid);
+          postRef.collection('likes').doc(currentUser.uid);
 
-      final likeSnapshot = await likeRef.get();
+      final likeDoc = await likeRef.get();
 
-      if (likeSnapshot.exists) {
+      if (likeDoc.exists) {
         await likeRef.delete();
 
         await postRef.update({
@@ -215,7 +171,7 @@ class _TextPostCardState extends State<_TextPostCard> {
         });
       } else {
         await likeRef.set({
-          'userId': uid,
+          'userId': currentUser.uid,
           'createdAt': FieldValue.serverTimestamp(),
         });
 
@@ -224,94 +180,46 @@ class _TextPostCardState extends State<_TextPostCard> {
         });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Like করা যায়নি: $e',
-            ),
-          ),
-        );
-      }
+      _message('Like করা যায়নি।');
     } finally {
       if (mounted) {
         setState(() {
-          _isLiking = false;
+          _loadingLike = false;
         });
       }
     }
   }
 
-  void _showLoginMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Like করতে আগে Login করুন।',
-        ),
-      ),
-    );
-  }
-
-  void _openComments() {
-    final uid = currentUserId;
-
-    if (uid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Comment করতে আগে Login করুন।',
-          ),
-        ),
-      );
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CommentScreen(
-          postId: widget.postId,
-        ),
-      ),
-    );
-  }
-
   Future<void> _sharePost() async {
-    final uid = currentUserId;
+    final currentUser = user;
 
-    if (uid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Share করতে আগে Login করুন।',
-          ),
-        ),
-      );
+    if (currentUser == null) {
+      _message('Share করতে আগে Login করুন।');
       return;
     }
+
+    if (_loadingShare) return;
+
+    setState(() {
+      _loadingShare = true;
+    });
 
     try {
       final postRef =
           _firestore.collection('posts').doc(widget.postId);
 
       final shareRef =
-          postRef.collection('shares').doc(uid);
+          postRef.collection('shares').doc(currentUser.uid);
 
-      final shareSnapshot = await shareRef.get();
+      final shareDoc = await shareRef.get();
 
-      if (shareSnapshot.exists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'আপনি এই পোস্টটি ইতিমধ্যে Share করেছেন।',
-            ),
-          ),
-        );
+      if (shareDoc.exists) {
+        _message('আপনি এই Post ইতিমধ্যে Share করেছেন।');
         return;
       }
 
       await shareRef.set({
-        'userId': uid,
+        'userId': currentUser.uid,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -319,152 +227,217 @@ class _TextPostCardState extends State<_TextPostCard> {
         'shareCount': FieldValue.increment(1),
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Post Share হয়েছে।',
-            ),
-          ),
-        );
-      }
+      _message('Post Share হয়েছে।');
     } catch (e) {
+      _message('Share করা যায়নি।');
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Share করা যায়নি: $e',
-            ),
-          ),
-        );
+        setState(() {
+          _loadingShare = false;
+        });
       }
     }
   }
 
+  void _openComments() {
+    if (user == null) {
+      _message('Comment করতে আগে Login করুন।');
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CommentsScreen(
+          postId: widget.postId,
+        ),
+      ),
+    );
+  }
+
+  void _message(String text) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final uid = currentUserId;
-
     final postRef =
         _firestore.collection('posts').doc(widget.postId);
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: postRef.snapshots(),
       builder: (context, postSnapshot) {
-        final data = postSnapshot.data?.data() ?? {};
+        final data =
+            postSnapshot.data?.data() ?? widget.data;
 
-        final likeCount =
+        final String userName =
+            data['userName'] ?? 'Bondhu User';
+
+        final String photoUrl =
+            data['userPhotoUrl'] ?? '';
+
+        final String text =
+            data['text'] ?? '';
+
+        final int likeCount =
             (data['likeCount'] ?? 0) as num;
 
-        final commentCount =
+        final int commentCount =
             (data['commentCount'] ?? 0) as num;
 
-        final shareCount =
+        final int shareCount =
             (data['shareCount'] ?? 0) as num;
 
-        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: uid == null
+        return StreamBuilder<
+            DocumentSnapshot<Map<String, dynamic>>>(
+          stream: user == null
               ? null
-              : postRef.collection('likes').doc(uid).snapshots(),
+              : postRef
+                  .collection('likes')
+                  .doc(user!.uid)
+                  .snapshots(),
           builder: (context, likeSnapshot) {
             final isLiked =
                 likeSnapshot.data?.exists ?? false;
 
             return Card(
               margin: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 8,
+                horizontal: 8,
+                vertical: 5,
               ),
+              elevation: 0,
               child: Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
                   ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(
+                      horizontal: 12,
+                    ),
                     leading: CircleAvatar(
+                      radius: 22,
                       backgroundImage:
-                          widget.userPhotoUrl.isNotEmpty
-                              ? NetworkImage(
-                                  widget.userPhotoUrl,
-                                )
+                          photoUrl.isNotEmpty
+                              ? NetworkImage(photoUrl)
                               : null,
-                      child: widget.userPhotoUrl.isEmpty
+                      child: photoUrl.isEmpty
                           ? const Icon(Icons.person)
                           : null,
                     ),
                     title: Text(
-                      widget.userName,
+                      userName,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    subtitle:
+                        const Text('Public'),
+                    trailing: const Icon(
+                      Icons.more_horiz,
+                    ),
                   ),
 
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      16,
-                      0,
-                      16,
-                      15,
-                    ),
-                    child: Text(
-                      widget.text,
-                      style: const TextStyle(
-                        fontSize: 16,
+                  if (text.isNotEmpty)
+                    Padding(
+                      padding:
+                          const EdgeInsets.fromLTRB(
+                        16,
+                        0,
+                        16,
+                        14,
+                      ),
+                      child: Text(
+                        text,
+                        style: const TextStyle(
+                          fontSize: 16,
+                        ),
                       ),
                     ),
-                  ),
 
                   Padding(
-                    padding: const EdgeInsets.symmetric(
+                    padding:
+                        const EdgeInsets.symmetric(
                       horizontal: 16,
+                      vertical: 8,
                     ),
                     child: Row(
                       children: [
-                        Text('$likeCount Likes'),
-                        const SizedBox(width: 15),
-                        Text('$commentCount Comments'),
-                        const SizedBox(width: 15),
-                        Text('$shareCount Shares'),
+                        if (likeCount > 0)
+                          const Icon(
+                            Icons.favorite,
+                            size: 18,
+                          ),
+                        const SizedBox(width: 5),
+                        Text('$likeCount'),
+
+                        const Spacer(),
+
+                        Text(
+                          '$commentCount Comments',
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          '$shareCount Shares',
+                        ),
                       ],
                     ),
                   ),
 
-                  const Divider(),
+                  const Divider(height: 1),
 
                   Row(
                     children: [
                       Expanded(
                         child: TextButton.icon(
                           onPressed:
-                              _isLiking ? null : _toggleLike,
+                              _loadingLike
+                                  ? null
+                                  : _toggleLike,
                           icon: Icon(
                             isLiked
                                 ? Icons.favorite
-                                : Icons.favorite_border,
+                                : Icons
+                                    .favorite_border,
                           ),
                           label: Text(
-                            isLiked ? 'Liked' : 'Like',
+                            isLiked
+                                ? 'Liked'
+                                : 'Like',
                           ),
                         ),
                       ),
 
                       Expanded(
                         child: TextButton.icon(
-                          onPressed: _openComments,
+                          onPressed:
+                              _openComments,
                           icon: const Icon(
-                            Icons.comment_outlined,
+                            Icons
+                                .comment_outlined,
                           ),
-                          label: const Text('Comment'),
+                          label: const Text(
+                            'Comment',
+                          ),
                         ),
                       ),
 
                       Expanded(
                         child: TextButton.icon(
-                          onPressed: _sharePost,
+                          onPressed:
+                              _loadingShare
+                                  ? null
+                                  : _sharePost,
                           icon: const Icon(
                             Icons.share_outlined,
                           ),
-                          label: const Text('Share'),
+                          label: const Text(
+                            'Share',
+                          ),
                         ),
                       ),
                     ],
@@ -479,22 +452,25 @@ class _TextPostCardState extends State<_TextPostCard> {
   }
 }
 
-class CommentScreen extends StatefulWidget {
+class CommentsScreen extends StatefulWidget {
   final String postId;
 
-  const CommentScreen({
+  const CommentsScreen({
     super.key,
     required this.postId,
   });
 
   @override
-  State<CommentScreen> createState() =>
-      _CommentScreenState();
+  State<CommentsScreen> createState() =>
+      _CommentsScreenState();
 }
 
-class _CommentScreenState extends State<CommentScreen> {
+class _CommentsScreenState
+    extends State<CommentsScreen> {
   final TextEditingController _controller =
       TextEditingController();
+
+  bool _sending = false;
 
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
@@ -502,14 +478,14 @@ class _CommentScreenState extends State<CommentScreen> {
   final FirebaseAuth _auth =
       FirebaseAuth.instance;
 
-  bool _sending = false;
-
   Future<void> _sendComment() async {
-    final user = _auth.currentUser;
+    final currentUser =
+        _auth.currentUser;
 
-    if (user == null) return;
+    if (currentUser == null) return;
 
-    final text = _controller.text.trim();
+    final text =
+        _controller.text.trim();
 
     if (text.isEmpty) return;
 
@@ -519,27 +495,36 @@ class _CommentScreenState extends State<CommentScreen> {
 
     try {
       final postRef =
-          _firestore.collection('posts').doc(widget.postId);
+          _firestore
+              .collection('posts')
+              .doc(widget.postId);
 
-      await postRef.collection('comments').add({
-        'userId': user.uid,
-        'userName': user.displayName ?? 'Bondhu User',
+      final commentRef =
+          postRef.collection('comments').doc();
+
+      await commentRef.set({
+        'userId': currentUser.uid,
+        'userName':
+            currentUser.displayName ??
+                'Bondhu User',
         'text': text,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt':
+            FieldValue.serverTimestamp(),
       });
 
       await postRef.update({
-        'commentCount': FieldValue.increment(1),
+        'commentCount':
+            FieldValue.increment(1),
       });
 
       _controller.clear();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Comment করা যায়নি: $e',
-            ),
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
+          const SnackBar(
+            content:
+                Text('Comment করা যায়নি।'),
           ),
         );
       }
@@ -560,31 +545,38 @@ class _CommentScreenState extends State<CommentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final commentsStream = _firestore
-        .collection('posts')
-        .doc(widget.postId)
-        .collection('comments')
-        .orderBy(
-          'createdAt',
-          descending: true,
-        )
-        .snapshots();
+    final commentsStream =
+        _firestore
+            .collection('posts')
+            .doc(widget.postId)
+            .collection('comments')
+            .orderBy(
+              'createdAt',
+              descending: true,
+            )
+            .snapshots();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Comments'),
+        title:
+            const Text('Comments'),
       ),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
+                QuerySnapshot<
+                    Map<String, dynamic>>>(
               stream: commentsStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
+              builder:
+                  (context, snapshot) {
+                if (snapshot
+                        .connectionState ==
+                    ConnectionState
+                        .waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(),
+                    child:
+                        CircularProgressIndicator(),
                   );
                 }
 
@@ -592,13 +584,15 @@ class _CommentScreenState extends State<CommentScreen> {
                   return Center(
                     child: Text(
                       'Comments loading failed.\n\n${snapshot.error}',
-                      textAlign: TextAlign.center,
+                      textAlign:
+                          TextAlign.center,
                     ),
                   );
                 }
 
                 final comments =
-                    snapshot.data?.docs ?? [];
+                    snapshot.data?.docs ??
+                        [];
 
                 if (comments.isEmpty) {
                   return const Center(
@@ -609,25 +603,32 @@ class _CommentScreenState extends State<CommentScreen> {
                 }
 
                 return ListView.builder(
-                  reverse: false,
-                  itemCount: comments.length,
-                  itemBuilder: (context, index) {
-                    final comment =
-                        comments[index].data();
+                  itemCount:
+                      comments.length,
+                  itemBuilder:
+                      (context, index) {
+                    final data =
+                        comments[index]
+                            .data();
 
                     return ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.person),
+                      leading:
+                          const CircleAvatar(
+                        child: Icon(
+                          Icons.person,
+                        ),
                       ),
                       title: Text(
-                        comment['userName'] ??
+                        data['userName'] ??
                             'Bondhu User',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
                       subtitle: Text(
-                        comment['text'] ?? '',
+                        data['text'] ?? '',
                       ),
                     );
                   },
@@ -638,30 +639,39 @@ class _CommentScreenState extends State<CommentScreen> {
 
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(8),
+              padding:
+                  const EdgeInsets.all(8),
               child: Row(
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: _controller,
+                      controller:
+                          _controller,
                       textInputAction:
-                          TextInputAction.send,
+                          TextInputAction
+                              .send,
                       onSubmitted: (_) {
                         if (!_sending) {
                           _sendComment();
                         }
                       },
-                      decoration: const InputDecoration(
+                      decoration:
+                          const InputDecoration(
                         hintText:
-                            'Comment লিখুন...',
-                        border: OutlineInputBorder(),
+                            'Write a comment...',
+                        border:
+                            OutlineInputBorder(),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(
+                    width: 8,
+                  ),
                   IconButton(
                     onPressed:
-                        _sending ? null : _sendComment,
+                        _sending
+                            ? null
+                            : _sendComment,
                     icon: _sending
                         ? const SizedBox(
                             width: 22,
