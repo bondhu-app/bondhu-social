@@ -10,14 +10,11 @@ class FeedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        elevation: 0,
         title: const Text(
-          'Bondhu',
+          'Bondhu Social',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 24,
           ),
         ),
         actions: [
@@ -51,7 +48,7 @@ class FeedScreen extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Text(
-                  'Feed loading failed.\n\n${snapshot.error}',
+                  'Feed loading failed:\n${snapshot.error}',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -61,41 +58,23 @@ class FeedScreen extends StatelessWidget {
           final posts = snapshot.data?.docs ?? [];
 
           if (posts.isEmpty) {
-            return Center(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const CreatePostScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Create Post'),
-              ),
+            return const Center(
+              child: Text('এখনো কোনো Post নেই।'),
             );
           }
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              await Future.delayed(
-                const Duration(milliseconds: 500),
+          return ListView.builder(
+            padding: const EdgeInsets.only(
+              top: 8,
+              bottom: 80,
+            ),
+            itemCount: posts.length,
+            itemBuilder: (context, index) {
+              return PostCard(
+                postId: posts[index].id,
+                data: posts[index].data(),
               );
             },
-            child: ListView.builder(
-              padding: const EdgeInsets.only(
-                top: 8,
-                bottom: 90,
-              ),
-              itemCount: posts.length,
-              itemBuilder: (context, index) {
-                return PostCard(
-                  postId: posts[index].id,
-                  data: posts[index].data(),
-                );
-              },
-            ),
           );
         },
       ),
@@ -114,7 +93,7 @@ class FeedScreen extends StatelessWidget {
   }
 }
 
-class PostCard extends StatefulWidget {
+class PostCard extends StatelessWidget {
   final String postId;
   final Map<String, dynamic> data;
 
@@ -124,42 +103,22 @@ class PostCard extends StatefulWidget {
     required this.data,
   });
 
-  @override
-  State<PostCard> createState() => _PostCardState();
-}
+  Future<void> toggleLike(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
 
-class _PostCardState extends State<PostCard> {
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
-
-  final FirebaseAuth _auth =
-      FirebaseAuth.instance;
-
-  bool _loadingLike = false;
-  bool _loadingShare = false;
-
-  User? get user => _auth.currentUser;
-
-  Future<void> _toggleLike() async {
-    final currentUser = user;
-
-    if (currentUser == null) {
-      _message('Like করতে আগে Login করুন।');
+    if (user == null) {
+      showMessage(context, 'Like করতে আগে Login করুন।');
       return;
     }
 
-    if (_loadingLike) return;
-
-    setState(() {
-      _loadingLike = true;
-    });
-
     try {
+      final firestore = FirebaseFirestore.instance;
+
       final postRef =
-          _firestore.collection('posts').doc(widget.postId);
+          firestore.collection('posts').doc(postId);
 
       final likeRef =
-          postRef.collection('likes').doc(currentUser.uid);
+          postRef.collection('likes').doc(user.uid);
 
       final likeDoc = await likeRef.get();
 
@@ -171,7 +130,7 @@ class _PostCardState extends State<PostCard> {
         });
       } else {
         await likeRef.set({
-          'userId': currentUser.uid,
+          'userId': user.uid,
           'createdAt': FieldValue.serverTimestamp(),
         });
 
@@ -180,46 +139,42 @@ class _PostCardState extends State<PostCard> {
         });
       }
     } catch (e) {
-      _message('Like করা যায়নি।');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _loadingLike = false;
-        });
-      }
+      showMessage(
+        context,
+        'Like করা যায়নি:\n$e',
+      );
     }
   }
 
-  Future<void> _sharePost() async {
-    final currentUser = user;
+  Future<void> sharePost(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
 
-    if (currentUser == null) {
-      _message('Share করতে আগে Login করুন।');
+    if (user == null) {
+      showMessage(context, 'Share করতে আগে Login করুন।');
       return;
     }
 
-    if (_loadingShare) return;
-
-    setState(() {
-      _loadingShare = true;
-    });
-
     try {
+      final firestore = FirebaseFirestore.instance;
+
       final postRef =
-          _firestore.collection('posts').doc(widget.postId);
+          firestore.collection('posts').doc(postId);
 
       final shareRef =
-          postRef.collection('shares').doc(currentUser.uid);
+          postRef.collection('shares').doc(user.uid);
 
       final shareDoc = await shareRef.get();
 
       if (shareDoc.exists) {
-        _message('আপনি এই Post ইতিমধ্যে Share করেছেন।');
+        showMessage(
+          context,
+          'আপনি ইতিমধ্যে এই Post Share করেছেন।',
+        );
         return;
       }
 
       await shareRef.set({
-        'userId': currentUser.uid,
+        'userId': user.uid,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -227,21 +182,26 @@ class _PostCardState extends State<PostCard> {
         'shareCount': FieldValue.increment(1),
       });
 
-      _message('Post Share হয়েছে।');
+      showMessage(
+        context,
+        'Post Share হয়েছে।',
+      );
     } catch (e) {
-      _message('Share করা যায়নি।');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _loadingShare = false;
-        });
-      }
+      showMessage(
+        context,
+        'Share করা যায়নি:\n$e',
+      );
     }
   }
 
-  void _openComments() {
+  void openComments(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     if (user == null) {
-      _message('Comment করতে আগে Login করুন।');
+      showMessage(
+        context,
+        'Comment করতে আগে Login করুন।',
+      );
       return;
     }
 
@@ -249,48 +209,55 @@ class _PostCardState extends State<PostCard> {
       context,
       MaterialPageRoute(
         builder: (_) => CommentsScreen(
-          postId: widget.postId,
+          postId: postId,
         ),
       ),
     );
   }
 
-  void _message(String text) {
-    if (!mounted) return;
-
+  static void showMessage(
+    BuildContext context,
+    String message,
+  ) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
+      SnackBar(
+        content: Text(message),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final postRef =
-        _firestore.collection('posts').doc(widget.postId);
+        FirebaseFirestore.instance
+            .collection('posts')
+            .doc(postId);
+
+    final user = FirebaseAuth.instance.currentUser;
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: postRef.snapshots(),
-      builder: (context, postSnapshot) {
-        final data =
-            postSnapshot.data?.data() ?? widget.data;
+      builder: (context, snapshot) {
+        final postData =
+            snapshot.data?.data() ?? data;
 
-        final String userName =
-            data['userName'] ?? 'Bondhu User';
+        final String name =
+            postData['userName'] ?? 'Bondhu User';
 
         final String photoUrl =
-            data['userPhotoUrl'] ?? '';
+            postData['userPhotoUrl'] ?? '';
 
         final String text =
-            data['text'] ?? '';
+            postData['text'] ?? '';
 
-        final int likeCount =
-            (data['likeCount'] ?? 0) as num;
+        final int likes =
+            (postData['likeCount'] ?? 0) as num;
 
-        final int commentCount =
-            (data['commentCount'] ?? 0) as num;
+        final int comments =
+            (postData['commentCount'] ?? 0) as num;
 
-        final int shareCount =
-            (data['shareCount'] ?? 0) as num;
+        final int shares =
+            (postData['shareCount'] ?? 0) as num;
 
         return StreamBuilder<
             DocumentSnapshot<Map<String, dynamic>>>(
@@ -298,29 +265,23 @@ class _PostCardState extends State<PostCard> {
               ? null
               : postRef
                   .collection('likes')
-                  .doc(user!.uid)
+                  .doc(user.uid)
                   .snapshots(),
           builder: (context, likeSnapshot) {
-            final isLiked =
+            final bool isLiked =
                 likeSnapshot.data?.exists ?? false;
 
             return Card(
               margin: const EdgeInsets.symmetric(
                 horizontal: 8,
-                vertical: 5,
+                vertical: 6,
               ),
-              elevation: 0,
               child: Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
                   ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(
-                      horizontal: 12,
-                    ),
                     leading: CircleAvatar(
-                      radius: 22,
                       backgroundImage:
                           photoUrl.isNotEmpty
                               ? NetworkImage(photoUrl)
@@ -330,26 +291,21 @@ class _PostCardState extends State<PostCard> {
                           : null,
                     ),
                     title: Text(
-                      userName,
+                      name,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    subtitle:
-                        const Text('Public'),
-                    trailing: const Icon(
-                      Icons.more_horiz,
-                    ),
+                    subtitle: const Text('Public'),
                   ),
 
                   if (text.isNotEmpty)
                     Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(
+                      padding: const EdgeInsets.fromLTRB(
                         16,
                         0,
                         16,
-                        14,
+                        15,
                       ),
                       child: Text(
                         text,
@@ -360,30 +316,17 @@ class _PostCardState extends State<PostCard> {
                     ),
 
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
                     ),
                     child: Row(
                       children: [
-                        if (likeCount > 0)
-                          const Icon(
-                            Icons.favorite,
-                            size: 18,
-                          ),
-                        const SizedBox(width: 5),
-                        Text('$likeCount'),
-
+                        Text('$likes Likes'),
                         const Spacer(),
-
-                        Text(
-                          '$commentCount Comments',
-                        ),
+                        Text('$comments Comments'),
                         const SizedBox(width: 12),
-                        Text(
-                          '$shareCount Shares',
-                        ),
+                        Text('$shares Shares'),
                       ],
                     ),
                   ),
@@ -394,15 +337,13 @@ class _PostCardState extends State<PostCard> {
                     children: [
                       Expanded(
                         child: TextButton.icon(
-                          onPressed:
-                              _loadingLike
-                                  ? null
-                                  : _toggleLike,
+                          onPressed: () {
+                            toggleLike(context);
+                          },
                           icon: Icon(
                             isLiked
                                 ? Icons.favorite
-                                : Icons
-                                    .favorite_border,
+                                : Icons.favorite_border,
                           ),
                           label: Text(
                             isLiked
@@ -414,11 +355,11 @@ class _PostCardState extends State<PostCard> {
 
                       Expanded(
                         child: TextButton.icon(
-                          onPressed:
-                              _openComments,
+                          onPressed: () {
+                            openComments(context);
+                          },
                           icon: const Icon(
-                            Icons
-                                .comment_outlined,
+                            Icons.comment_outlined,
                           ),
                           label: const Text(
                             'Comment',
@@ -428,10 +369,9 @@ class _PostCardState extends State<PostCard> {
 
                       Expanded(
                         child: TextButton.icon(
-                          onPressed:
-                              _loadingShare
-                                  ? null
-                                  : _sharePost,
+                          onPressed: () {
+                            sharePost(context);
+                          },
                           icon: const Icon(
                             Icons.share_outlined,
                           ),
@@ -467,46 +407,43 @@ class CommentsScreen extends StatefulWidget {
 
 class _CommentsScreenState
     extends State<CommentsScreen> {
-  final TextEditingController _controller =
+  final TextEditingController controller =
       TextEditingController();
 
-  bool _sending = false;
+  bool sending = false;
 
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+  Future<void> sendComment() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
 
-  final FirebaseAuth _auth =
-      FirebaseAuth.instance;
-
-  Future<void> _sendComment() async {
-    final currentUser =
-        _auth.currentUser;
-
-    if (currentUser == null) return;
+    if (user == null) {
+      return;
+    }
 
     final text =
-        _controller.text.trim();
+        controller.text.trim();
 
-    if (text.isEmpty) return;
+    if (text.isEmpty) {
+      return;
+    }
 
     setState(() {
-      _sending = true;
+      sending = true;
     });
 
     try {
+      final firestore =
+          FirebaseFirestore.instance;
+
       final postRef =
-          _firestore
+          firestore
               .collection('posts')
               .doc(widget.postId);
 
-      final commentRef =
-          postRef.collection('comments').doc();
-
-      await commentRef.set({
-        'userId': currentUser.uid,
+      await postRef.collection('comments').add({
+        'userId': user.uid,
         'userName':
-            currentUser.displayName ??
-                'Bondhu User',
+            user.displayName ?? 'Bondhu User',
         'text': text,
         'createdAt':
             FieldValue.serverTimestamp(),
@@ -517,21 +454,22 @@ class _CommentsScreenState
             FieldValue.increment(1),
       });
 
-      _controller.clear();
+      controller.clear();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(
-          const SnackBar(
-            content:
-                Text('Comment করা যায়নি।'),
+          SnackBar(
+            content: Text(
+              'Comment করা যায়নি:\n$e',
+            ),
           ),
         );
       }
     } finally {
       if (mounted) {
         setState(() {
-          _sending = false;
+          sending = false;
         });
       }
     }
@@ -539,14 +477,14 @@ class _CommentsScreenState
 
   @override
   void dispose() {
-    _controller.dispose();
+    controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final commentsStream =
-        _firestore
+    final stream =
+        FirebaseFirestore.instance
             .collection('posts')
             .doc(widget.postId)
             .collection('comments')
@@ -558,8 +496,7 @@ class _CommentsScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title:
-            const Text('Comments'),
+        title: const Text('Comments'),
       ),
       body: Column(
         children: [
@@ -567,13 +504,10 @@ class _CommentsScreenState
             child: StreamBuilder<
                 QuerySnapshot<
                     Map<String, dynamic>>>(
-              stream: commentsStream,
-              builder:
-                  (context, snapshot) {
-                if (snapshot
-                        .connectionState ==
-                    ConnectionState
-                        .waiting) {
+              stream: stream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
                   return const Center(
                     child:
                         CircularProgressIndicator(),
@@ -583,7 +517,7 @@ class _CommentsScreenState
                 if (snapshot.hasError) {
                   return Center(
                     child: Text(
-                      'Comments loading failed.\n\n${snapshot.error}',
+                      'Error:\n${snapshot.error}',
                       textAlign:
                           TextAlign.center,
                     ),
@@ -591,8 +525,7 @@ class _CommentsScreenState
                 }
 
                 final comments =
-                    snapshot.data?.docs ??
-                        [];
+                    snapshot.data?.docs ?? [];
 
                 if (comments.isEmpty) {
                   return const Center(
@@ -607,9 +540,8 @@ class _CommentsScreenState
                       comments.length,
                   itemBuilder:
                       (context, index) {
-                    final data =
-                        comments[index]
-                            .data();
+                    final comment =
+                        comments[index].data();
 
                     return ListTile(
                       leading:
@@ -619,7 +551,7 @@ class _CommentsScreenState
                         ),
                       ),
                       title: Text(
-                        data['userName'] ??
+                        comment['userName'] ??
                             'Bondhu User',
                         style:
                             const TextStyle(
@@ -628,7 +560,8 @@ class _CommentsScreenState
                         ),
                       ),
                       subtitle: Text(
-                        data['text'] ?? '',
+                        comment['text'] ??
+                            '',
                       ),
                     );
                   },
@@ -645,34 +578,30 @@ class _CommentsScreenState
                 children: [
                   Expanded(
                     child: TextField(
-                      controller:
-                          _controller,
+                      controller: controller,
                       textInputAction:
-                          TextInputAction
-                              .send,
+                          TextInputAction.send,
                       onSubmitted: (_) {
-                        if (!_sending) {
-                          _sendComment();
+                        if (!sending) {
+                          sendComment();
                         }
                       },
                       decoration:
                           const InputDecoration(
                         hintText:
-                            'Write a comment...',
+                            'Comment লিখুন...',
                         border:
                             OutlineInputBorder(),
                       ),
                     ),
                   ),
-                  const SizedBox(
-                    width: 8,
-                  ),
+                  const SizedBox(width: 8),
                   IconButton(
                     onPressed:
-                        _sending
+                        sending
                             ? null
-                            : _sendComment,
-                    icon: _sending
+                            : sendComment,
+                    icon: sending
                         ? const SizedBox(
                             width: 22,
                             height: 22,
